@@ -3,18 +3,21 @@ name = "cltv-scan"
 version = "0.1.0"
 edition = "2024"
 description = "Bitcoin timelock vulnerability scanner"
-license = "MIT"
 
 [dependencies]
 anyhow = "1"
-axum = "0.8"
+bitcoin = "0.32"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
-moka = { version = "0.12", features = ["future"] }
+axum = { version = "0.8", features = ["http1", "json", "tracing"] }
+floresta-node = { git = "https://github.com/getfloresta/Floresta", package = "floresta-node", default-features = false, features = ["json-rpc"] }
+floresta-rpc = { git = "https://github.com/getfloresta/Floresta", package = "floresta-rpc", features = ["with-jsonrpc"] }
+once_cell = "1"
 reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
-tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
+tower = "0.5"
+moka = { version = "0.12", features = ["future"] }
