@@ -1,6 +1,6 @@
 # cltv-scan
 
-A Bitcoin timelock security analyzer that scans live blockchain transactions, extracts and classifies all four types of timelocks, identifies Lightning Network transactions on-chain, and detects patterns associated with known attack vectors.
+A Bitcoin timelock security analyzer that scans live blockchain transactions, extracts and classifies all four types of timelocks, identifies Lightning Network transactions on-chain, detects patterns associated with known attack vectors, and monitors the mempool in real-time for emerging threats.
 
 Built for [Bitcoin++ Exploits Edition 2026](https://btcpp.dev/).
 
@@ -52,6 +52,10 @@ Four detection heuristics scan for known attack vectors and dangerous configurat
 **Anomalous nSequence** (severity: informational/warning) -- Flags inputs with non-standard sequence values: very short relative timelocks (< 6 blocks, may indicate minimized revocation windows), very long relative timelocks (> 1000 blocks, unusual), and time-based relative timelocks (bit 22 set, rare in practice). Lightning commitment sequences (0x80 upper byte) are recognized and excluded from anomaly detection.
 
 All detections produce structured alerts with severity level, affected transaction, description, raw data, and attack reference (paper, author, year, URL).
+
+### Mempool monitor
+
+A real-time monitoring mode that continuously polls unconfirmed transactions from the mempool, analyzes each one, and prints findings as they appear. Only transactions with active timelocks, Lightning classification, or security alerts are displayed. Configurable polling interval and minimum severity filter.
 
 ### HTTP server
 
@@ -127,6 +131,22 @@ cltv-scan scan <height> --cltv-critical 18 --cltv-warning 34 --cluster-threshold
 cltv-scan scan <height> --json
 ```
 
+### Monitor the mempool
+
+```bash
+# Watch for interesting transactions in real-time (polls every 10s)
+cltv-scan monitor
+
+# Custom polling interval
+cltv-scan monitor --interval 5
+
+# Only show warning and critical alerts
+cltv-scan monitor --min-severity warning
+
+# JSON output (one line per transaction, useful for piping)
+cltv-scan monitor --json
+```
+
 ### Start the HTTP server
 
 ```bash
@@ -157,6 +177,21 @@ Security Scan: block 886500
   tx: ae090d9d6ba34c17b80c1d26e995bcc5325ce69d4566ac9120b015a7d982f61b input[0]
   Input 0 has a very long relative timelock (2016 blocks ~ 14.0 days).
   Unusual -- may indicate specialized custody or misconfiguration.
+```
+
+```
+$ cltv-scan monitor --min-severity warning
+
+Monitoring mempool (every 10s, Ctrl+C to stop)...
+
+[14:23:05] 9303ffe0f2fcfb3907546ff3b8e1ce8fd29d8386f9a11df132becb12f67ae48d
+  ⚡ Lightning: commitment (force-close) [highly likely]
+  [CRITICAL] short-cltv-delta: CLTV timelock at block 886866 has expired (51694 blocks ago).
+  timelocks: nLockTime, 2 CLTV
+
+[14:23:15] ae090d9d6ba34c17b80c1d26e995bcc5325ce69d4566ac9120b015a7d982f61b
+  [WARNING ] anomalous-sequence: Input 0 has a very long relative timelock (2016 blocks ~ 14.0 days).
+  timelocks: 1 nSequence
 ```
 
 ```
