@@ -1,3 +1,4 @@
+use crate::lightning::types::{Confidence, LightningClassification, LightningTxType};
 use crate::timelock::types::{SequenceMeaning, TransactionAnalysis};
 
 pub fn print_transaction_analysis(analysis: &TransactionAnalysis) {
@@ -78,6 +79,114 @@ pub fn print_transaction_analysis(analysis: &TransactionAnalysis) {
         println!("Active timelocks: {}", parts.join(", "));
     } else {
         println!("No active timelocks.");
+    }
+}
+
+pub fn print_lightning_classification(txid: &str, lc: &LightningClassification) {
+    println!("Transaction: {txid}");
+    println!("{}", "─".repeat(72));
+
+    match lc.tx_type {
+        None => println!("Lightning: not identified"),
+        Some(ref t) => {
+            let type_str = match t {
+                LightningTxType::Commitment => "Commitment (force-close)",
+                LightningTxType::HtlcTimeout => "HTLC-timeout (refund)",
+                LightningTxType::HtlcSuccess => "HTLC-success (claim)",
+            };
+            let conf = match lc.confidence {
+                Confidence::None => "none",
+                Confidence::Possible => "possible",
+                Confidence::HighlyLikely => "highly likely",
+            };
+            println!("Lightning:   {type_str} [{conf}]");
+        }
+    }
+
+    // Commitment signals
+    let s = &lc.commitment_signals;
+    if s.locktime_match || s.sequence_match || s.has_anchor_outputs {
+        println!();
+        println!("Commitment signals:");
+        if s.locktime_match {
+            println!("  locktime in 0x20 range (Lightning encoding)");
+        }
+        if s.sequence_match {
+            println!("  sequence with 0x80 upper byte");
+        }
+        if s.has_anchor_outputs {
+            println!("  {} anchor output(s) (330 sats)", s.anchor_output_count);
+        }
+    }
+
+    // Extracted parameters
+    let p = &lc.params;
+    let has_params = p.commitment_number.is_some()
+        || p.cltv_expiry.is_some()
+        || p.preimage_revealed
+        || !p.csv_delays.is_empty()
+        || p.htlc_output_count.is_some();
+
+    if has_params {
+        println!();
+        println!("Parameters:");
+        if let Some(cn) = p.commitment_number {
+            println!("  commitment number: {cn} (obscured)");
+        }
+        if let Some(count) = p.htlc_output_count {
+            println!("  HTLC outputs: {count}");
+        }
+        if let Some(expiry) = p.cltv_expiry {
+            println!("  CLTV expiry: block {expiry}");
+        }
+        if p.preimage_revealed {
+            if let Some(ref pre) = p.preimage {
+                println!("  preimage: {pre}");
+            } else {
+                println!("  preimage: revealed");
+            }
+        }
+        if !p.csv_delays.is_empty() {
+            let delays: Vec<String> = p.csv_delays.iter().map(|d| format!("{d} blocks")).collect();
+            println!("  CSV delays: {}", delays.join(", "));
+        }
+    }
+}
+
+pub fn print_lightning_block_summary(
+    height: u64,
+    results: &[(String, LightningClassification)],
+) {
+    let lightning_txs: Vec<_> = results.iter().filter(|(_, lc)| lc.tx_type.is_some()).collect();
+
+    let commitments = lightning_txs.iter().filter(|(_, lc)| lc.tx_type == Some(LightningTxType::Commitment)).count();
+    let htlc_timeouts = lightning_txs.iter().filter(|(_, lc)| lc.tx_type == Some(LightningTxType::HtlcTimeout)).count();
+    let htlc_successes = lightning_txs.iter().filter(|(_, lc)| lc.tx_type == Some(LightningTxType::HtlcSuccess)).count();
+
+    println!("Block {height} — Lightning Activity");
+    println!("{}", "═".repeat(72));
+    println!(
+        "{} transactions scanned, {} Lightning-related",
+        results.len(),
+        lightning_txs.len()
+    );
+
+    if !lightning_txs.is_empty() {
+        println!(
+            "  {} commitment (force-close), {} HTLC-timeout, {} HTLC-success",
+            commitments, htlc_timeouts, htlc_successes
+        );
+    }
+    println!();
+
+    if lightning_txs.is_empty() {
+        println!("No Lightning transactions identified in this block.");
+        return;
+    }
+
+    for (txid, lc) in &lightning_txs {
+        print_lightning_classification(txid, lc);
+        println!();
     }
 }
 
