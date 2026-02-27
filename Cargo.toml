@@ -3,6 +3,7 @@ name = "cltv-scan"
 version = "0.1.0"
 edition = "2024"
 description = "Bitcoin timelock vulnerability scanner"
+license = "MIT"
 
 [dependencies]
 anyhow = "1"
